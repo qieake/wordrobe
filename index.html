@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#fcfaf5" />
   <title>我的每日衣柜</title>
+  <!-- 引入本地 AI 抠图模型库 -->
+  <script src="https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.5/dist/browser.js"></script>
   <style>
     :root { --bg: #fcfaf5; --paper: #ffffff; --text: #333333; --text-2: #888888; --primary: #ff7b89; --primary-light: #ffebed; --border: #f0ece1; --radius: 16px; --shadow: 0 4px 15px rgba(180, 160, 140, 0.12); }
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -17,7 +19,6 @@
     .page-header h1 { margin: 0; font-size: 26px; font-weight: 800; color: #2c2c2c; }
     .subtitle { margin: 4px 0 0; color: var(--text-2); font-size: 13px; }
     .card { background: var(--paper); border-radius: var(--radius); padding: 18px; margin-bottom: 16px; box-shadow: var(--shadow); border: 1px solid var(--border); transition: transform 0.2s; }
-    .card:hover { transform: translateY(-2px); }
     .card-tape { position: relative; }
     .card-tape::before { content: ''; position: absolute; top: -10px; left: 50%; transform: translateX(-50%) rotate(-2deg); width: 60px; height: 20px; background: rgba(255, 218, 185, 0.6); border-radius: 2px; z-index: 1; }
     .section-title { margin: 0 0 12px; font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
@@ -25,43 +26,52 @@
     .chip { padding: 8px 16px; border-radius: 20px; border: 1px solid var(--border); background: #faf8f5; color: var(--text); font-size: 14px; transition: 0.2s; cursor: pointer; }
     .chip.active { background: var(--primary); border-color: var(--primary); color: #fff; transform: scale(1.05); }
     .btn { padding: 14px 18px; border-radius: 12px; border: none; font-size: 16px; font-weight: 600; transition: 0.2s; cursor: pointer; }
-    .btn:active { transform: scale(0.97); }
     .btn-primary { background: var(--primary); color: #fff; box-shadow: 0 4px 12px rgba(255, 123, 137, 0.3); }
     .btn-secondary { background: #f0ece1; color: #666; }
     .btn-block { display: block; width: 100%; margin: 12px 0 20px; }
     .weather-card { background: linear-gradient(120deg, #a1c4fd 0%, #c2e9fb 100%); color: #1a3c5a; border: none; position: relative; overflow: hidden; }
-    .weather-card::after { content: '☁️'; position: absolute; right: -10px; bottom: -15px; font-size: 80px; opacity: 0.2; }
     .weather-main { display: flex; align-items: center; justify-content: space-between; }
     .weather-temp { font-size: 46px; font-weight: 800; }
-    .weather-desc { font-size: 16px; font-weight: 600; }
-    .weather-meta { font-size: 13px; opacity: 0.8; margin-top: 4px; }
     .upload-area { border: 2px dashed #e0d6c8; border-radius: var(--radius); min-height: 180px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #fcfbf9; cursor: pointer; position: relative; overflow: hidden; }
     .upload-icon { font-size: 32px; margin-bottom: 8px; color: var(--text-2); }
-    .upload-preview { width: 100%; max-height: 320px; object-fit: contain; display: block; }
+    .upload-preview { width: 100%; max-height: 320px; object-fit: contain; display: block; background: repeating-conic-gradient(#f0f0f0 0% 25%, transparent 0% 50%) 50% / 20px 20px; }
+    .loading-mask { position: absolute; inset: 0; background: rgba(255,255,255,0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 10; font-weight: bold; color: var(--primary); }
+    .spinner { width: 30px; height: 30px; border: 3px solid var(--primary-light); border-top-color: var(--primary); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 10px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    
+    /* 衣柜筛选区 */
+    .filter-group { margin-bottom: 12px; display: flex; align-items: flex-start; gap: 8px; }
+    .filter-label { font-size: 13px; font-weight: 600; color: var(--text-2); min-width: 40px; padding-top: 6px; }
+    .filter-scroll { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+    .filter-scroll::-webkit-scrollbar { display: none; }
+    .filter-scroll .chip { padding: 4px 12px; font-size: 13px; white-space: nowrap; }
+
     .closet-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 14px; }
-    .closet-item { background: var(--paper); border-radius: 12px; overflow: hidden; box-shadow: var(--shadow); border: 1px solid var(--border); position: relative; transition: 0.2s; }
-    .closet-item:hover { transform: rotate(-1.5deg); }
-    .closet-item img { width: 100%; aspect-ratio: 3/4; object-fit: cover; background: #fafafa; }
+    .closet-item { background: var(--paper); border-radius: 12px; overflow: hidden; box-shadow: var(--shadow); border: 1px solid var(--border); position: relative; }
+    .closet-item img { width: 100%; aspect-ratio: 3/4; object-fit: contain; background: repeating-conic-gradient(#f9f9f9 0% 25%, #fff 0% 50%) 50% / 10px 10px; }
     .closet-item-info { padding: 10px; }
-    .closet-item-name { font-size: 13px; font-weight: 600; }
-    .closet-item-meta { font-size: 12px; color: var(--text-2); margin-top: 4px; }
-    .delete-btn { position: absolute; top: 6px; right: 6px; width: 26px; height: 26px; border-radius: 50%; background: rgba(255,255,255,0.8); color: #ff3b30; border: none; font-size: 16px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
-    .outfit-card { background: var(--paper); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; box-shadow: var(--shadow); border: 1px solid var(--border); position: relative; }
+    .closet-item-name { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+    .item-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+    .item-tag { font-size: 10px; padding: 2px 6px; background: #f0f0f0; border-radius: 4px; color: #666; }
+    .delete-btn { position: absolute; top: 6px; right: 6px; width: 26px; height: 26px; border-radius: 50%; background: rgba(255,255,255,0.9); color: #ff3b30; border: none; font-size: 16px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+    
+    .outfit-card { background: var(--paper); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; box-shadow: var(--shadow); border: 1px solid var(--border); }
     .outfit-title { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
     .outfit-title h3 { margin: 0; font-size: 18px; font-weight: 800; color: var(--primary); }
     .outfit-badge { font-size: 12px; padding: 5px 12px; border-radius: 20px; background: var(--primary-light); color: var(--primary); font-weight: 700; }
     .outfit-items { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-    .outfit-item img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 12px; background: #fafafa; }
+    .outfit-item img { width: 100%; aspect-ratio: 1; object-fit: contain; border-radius: 12px; background: repeating-conic-gradient(#f9f9f9 0% 25%, #fff 0% 50%) 50% / 10px 10px; }
     .outfit-item-name { font-size: 12px; text-align: center; margin-top: 6px; font-weight: 600; color: #555; }
     .outfit-total { margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--border); font-size: 14px; color: var(--text-2); text-align: center; }
     .outfit-total strong { color: var(--primary); font-size: 16px; }
+    
     .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 1000; opacity: 0; pointer-events: none; transition: 0.3s; }
     .modal.show { opacity: 1; pointer-events: auto; }
     .modal img { max-width: 90%; max-height: 75vh; border-radius: 12px; }
     .modal p { color: #fff; margin-top: 16px; font-size: 14px; }
     .modal-close { margin-top: 20px; padding: 10px 24px; background: #fff; color: #333; border-radius: 20px; font-weight: bold; border: none; }
     .tabbar { position: fixed; left: 0; right: 0; bottom: 0; display: flex; background: rgba(252, 250, 245, 0.95); backdrop-filter: blur(10px); border-top: 1px solid var(--border); padding-bottom: env(safe-area-inset-bottom); z-index: 100; }
-    .tab { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 10px 0 8px; background: none; border: none; color: #999; font-size: 11px; transition: 0.2s; cursor: pointer; }
+    .tab { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 10px 0 8px; background: none; border: none; color: #999; font-size: 11px; cursor: pointer; }
     .tab.active { color: var(--primary); transform: translateY(-2px); }
     .tab-icon { font-size: 22px; margin-bottom: 4px; }
     .toast { position: fixed; left: 50%; top: 20%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: #fff; padding: 12px 24px; border-radius: 30px; font-size: 14px; opacity: 0; pointer-events: none; transition: 0.3s; z-index: 200; }
@@ -71,37 +81,94 @@
 </head>
 <body>
   <main id="app">
+    <!-- 今日穿搭页 -->
     <section class="view active" id="view-today">
       <header class="page-header"><h1>今日穿搭 ✨</h1><p class="subtitle" id="today-date"></p></header>
       <div class="card weather-card">
         <div id="weather-empty"><p style="margin:0 0 12px">还没有设置城市哦～</p><button class="btn btn-secondary" style="background:#fff; color:#1a3c5a;" onclick="switchTab('settings')">去设置</button></div>
         <div class="hidden weather-main" id="weather-content">
-          <div><div class="weather-temp" id="weather-temp">--°</div><div class="weather-desc" id="weather-desc">--</div><div class="weather-meta" id="weather-meta">--</div></div>
+          <div><div class="weather-temp" id="weather-temp">--°</div><div class="weather-desc" id="weather-desc">--</div></div>
         </div>
       </div>
       <div class="card"><h2 class="section-title">📍 今天去哪？</h2><div class="chips" id="scene-chips"></div></div>
-      <button class="btn btn-primary btn-block" onclick="generateOutfit()">一键生成今日穿搭</button>
+      <button class="btn btn-primary btn-block" onclick="generateOutfit()">AI 智能生成穿搭</button>
       <div id="outfit-result"></div>
     </section>
+
+    <!-- 衣柜页 -->
     <section class="view" id="view-closet">
       <header class="page-header"><h1>我的衣柜 👗</h1><p class="subtitle" id="closet-count"></p></header>
-      <div class="chips" id="closet-filters" style="margin-bottom:16px"></div>
+      
+      <!-- 多维筛选区 -->
+      <div class="card" style="padding: 12px;">
+        <div class="filter-group">
+          <div class="filter-label">类别</div>
+          <div class="filter-scroll" id="filter-cat"></div>
+        </div>
+        <div class="filter-group">
+          <div class="filter-label">颜色</div>
+          <div class="filter-scroll" id="filter-color"></div>
+        </div>
+        <div class="filter-group">
+          <div class="filter-label">风格</div>
+          <div class="filter-scroll" id="filter-style"></div>
+        </div>
+        <div class="filter-group" style="margin-bottom: 0;">
+          <div class="filter-label">功能</div>
+          <div class="filter-scroll" id="filter-func"></div>
+        </div>
+      </div>
+
       <div class="closet-grid" id="closet-grid"></div>
     </section>
+
+    <!-- 上传页 -->
     <section class="view" id="view-upload">
-      <header class="page-header"><h1>添加新衣 📸</h1></header>
+      <header class="page-header"><h1>AI 智能识别 📸</h1></header>
       <div class="card">
         <div class="upload-area" id="upload-area">
+          <div class="loading-mask hidden" id="ai-loading">
+            <div class="spinner"></div>
+            <div id="loading-text">AI 正在分析中...</div>
+            <div style="font-size:12px; color:#888; margin-top:5px; font-weight:normal;">首次使用需下载模型，请稍候</div>
+          </div>
           <input type="file" accept="image/*" id="file-input" hidden />
-          <div class="upload-placeholder" id="upload-placeholder"><div class="upload-icon">＋</div><p style="font-size:13px;color:#999">拍照或选择图片</p></div>
+          <div class="upload-placeholder" id="upload-placeholder"><div class="upload-icon">＋</div><p style="font-size:13px;color:#999">拍照或选图 (自动抠图与打标)</p></div>
           <img id="upload-preview" class="upload-preview hidden" />
         </div>
       </div>
-      <div class="card card-tape"><h2 class="section-title">衣物类别</h2><div class="chips" id="category-chips"></div></div>
-      <div class="card"><h2 class="section-title">具体类型</h2><div class="chips" id="subtype-chips"></div><p class="subtitle" id="temp-hint" style="margin-top:8px"></p></div>
-      <div class="card"><h2 class="section-title">适合场景（可多选）</h2><div class="chips" id="scene-multi-chips"></div></div>
+      
+      <div class="card card-tape">
+        <h2 class="section-title">类别与类型</h2>
+        <div class="chips" id="category-chips"></div>
+        <div class="chips" id="subtype-chips" style="margin-top:10px"></div>
+        <p class="subtitle" id="temp-hint" style="margin-top:8px"></p>
+      </div>
+
+      <div class="card">
+        <h2 class="section-title">🎨 颜色 (AI 提取)</h2>
+        <div class="chips" id="color-chips"></div>
+      </div>
+
+      <div class="card">
+        <h2 class="section-title">✨ 风格 (AI 推荐，可修改)</h2>
+        <div class="chips" id="style-chips"></div>
+      </div>
+
+      <div class="card">
+        <h2 class="section-title">⚙️ 功能 (AI 推荐，可修改)</h2>
+        <div class="chips" id="func-chips"></div>
+      </div>
+
+      <div class="card">
+        <h2 class="section-title">📍 适合场景</h2>
+        <div class="chips" id="scene-multi-chips"></div>
+      </div>
+
       <button class="btn btn-primary btn-block" id="save-item-btn" disabled onclick="saveItem()">保存到衣柜</button>
     </section>
+
+    <!-- 设置页 -->
     <section class="view" id="view-settings">
       <header class="page-header"><h1>设置 ⚙️</h1></header>
       <div class="card">
@@ -126,12 +193,14 @@
       </div>
     </section>
   </main>
+
   <nav class="tabbar">
     <button class="tab active" onclick="switchTab('today')"><span class="tab-icon">☀️</span><span>今日</span></button>
     <button class="tab" onclick="switchTab('closet')"><span class="tab-icon">👕</span><span>衣柜</span></button>
     <button class="tab" onclick="switchTab('upload')"><span class="tab-icon">＋</span><span>添加</span></button>
     <button class="tab" onclick="switchTab('settings')"><span class="tab-icon">⚙️</span><span>设置</span></button>
   </nav>
+
   <div class="modal" id="poster-modal">
     <img id="poster-img" src="" alt="穿搭海报" />
     <p>长按图片保存到手机相册</p>
@@ -140,15 +209,14 @@
   <div id="toast" class="toast"></div>
 
   <script>
-    const DB_NAME = 'daily-wardrobe'; let dbPromise = null;
+    /* --- 数据库 --- */
+    const DB_NAME = 'daily-wardrobe-v3'; // 再次升级版本以应用新结构
+    let dbPromise = null;
     function openDB() {
       if (dbPromise) return dbPromise;
       dbPromise = new Promise((resolve, reject) => {
-        const req = indexedDB.open(DB_NAME, 1);
-        req.onupgradeneeded = (e) => {
-          const db = e.target.result;
-          if (!db.objectStoreNames.contains('clothes')) db.createObjectStore('clothes', { keyPath: 'id' });
-        };
+        const req = indexedDB.open(DB_NAME, 3);
+        req.onupgradeneeded = (e) => { const db = e.target.result; if (!db.objectStoreNames.contains('clothes')) db.createObjectStore('clothes', { keyPath: 'id' }); };
         req.onsuccess = () => resolve(req.result); req.onerror = () => reject(req.error);
       });
       return dbPromise;
@@ -159,6 +227,8 @@
       getAllClothes() { return openDB().then(d => new Promise((res, rej) => { const req = d.transaction('clothes', 'readonly').objectStore('clothes').getAll(); req.onsuccess = () => res(req.result || []); req.onerror = () => rej(req.error); })); },
       clearAll() { return openDB().then(d => new Promise((res, rej) => { const t = d.transaction('clothes', 'readwrite'); t.objectStore('clothes').clear(); t.oncomplete = res; t.onerror = () => rej(t.error); })); }
     };
+
+    /* --- 配置数据 --- */
     const CATEGORIES = {
       top: { name: '上衣', subtypes: [{ id: 'tshirt', name: '短袖T恤', temp: 1 }, { id: 'shirt', name: '长袖/衬衫', temp: 2 }, { id: 'hoodie', name: '卫衣/针织', temp: 3.5 }, { id: 'sweater', name: '毛衣', temp: 5 }] },
       bottom: { name: '下装', subtypes: [{ id: 'shorts', name: '短裤/短裙', temp: 0.5 }, { id: 'skirt', name: '长裤/长裙', temp: 1.5 }, { id: 'pants', name: '牛仔裤', temp: 2.5 }] },
@@ -166,9 +236,21 @@
       shoes: { name: '鞋', subtypes: [{ id: 'canvas', name: '帆布鞋/单鞋', temp: 0.5 }, { id: 'sneaker', name: '运动鞋', temp: 1 }, { id: 'boots', name: '靴子', temp: 2 }] }
     };
     const SCENES = [{ id: 'daily', name: '日常' }, { id: 'work', name: '通勤' }, { id: 'sport', name: '运动' }, { id: 'date', name: '约会' }];
-    const state = { clothes: [], scene: 'daily', closetFilter: 'all', weather: null, upload: { image: null, category: 'top', subtype: null, scenes: [] } };
+    const STYLES = ['休闲', '运动', '通勤', '约会', '街头', '复古'];
+    const FUNCTIONS = ['保暖', '透气', '防晒', '防风', '防水', '吸汗'];
+    const COLORS = ['黑色', '白色', '灰色', '红色', '蓝色', '绿色', '黄色', '棕色'];
+
+    /* --- 全局状态 --- */
+    const state = { 
+      clothes: [], 
+      scene: 'daily', 
+      filters: { cat: 'all', color: 'all', style: 'all', func: 'all' }, 
+      weather: null, 
+      upload: { image: null, color: '', category: 'top', subtype: null, styles: [], funcs: [], scenes: [] } 
+    };
     let toastTimer = null, currentBestOutfit = null;
 
+    /* --- 基础工具 --- */
     function todayStr() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
     function generateId() { return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`; }
     function toast(msg) { const el = document.getElementById('toast'); el.textContent = msg; el.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 2200); }
@@ -180,55 +262,207 @@
       const tabBtn = Array.from(document.querySelectorAll('.tab')).find(t => t.textContent.includes(name === 'today' ? '今日' : name === 'closet' ? '衣柜' : name === 'upload' ? '添加' : '设置'));
       if (tabBtn) tabBtn.classList.add('active');
       window.scrollTo(0, 0);
-      if (name === 'closet') renderCloset();
+      if (name === 'closet') { renderFilters(); renderCloset(); }
       if (name === 'today') refreshToday();
     }
+
+    /* --- AI 抠图与图像分析 --- */
     async function handleFile(file) {
       if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (e) => {
+      const loadingEl = document.getElementById('ai-loading');
+      loadingEl.classList.remove('hidden');
+      
+      try {
+        const imageBlob = await imglyRemoveBackground(file, {
+          progress: (key, current, total) => {
+            if(key === 'fetch') document.getElementById('loading-text').textContent = `下载 AI 模型中... ${Math.round((current/total)*100)}%`;
+            if(key === 'compute') document.getElementById('loading-text').textContent = `AI 正在抠图并分析属性...`;
+          }
+        });
+        
+        const dataUrl = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve(e.target.result);
+          reader.readAsDataURL(imageBlob);
+        });
+        
         const img = new Image();
         img.onload = () => {
-          const canvas = document.createElement('canvas'); let { width, height } = img; const max = 600;
-          if (width > max || height > max) { const r = Math.min(max/width, max/height); width *= r; height *= r; }
-          canvas.width = width; canvas.height = height;
-          const ctx = canvas.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0,0,width,height); ctx.drawImage(img,0,0,width,height);
-          state.upload.image = canvas.toDataURL('image/jpeg', 0.8);
+          const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d');
+          canvas.width = 100; canvas.height = 100;
+          ctx.drawImage(img, 0, 0, 100, 100);
+          const data = ctx.getImageData(0, 0, 100, 100).data;
+          
+          let r = 0, g = 0, b = 0, count = 0;
+          for (let i = 0; i < data.length; i += 4) {
+            if (data[i+3] > 200) { r += data[i]; g += data[i+1]; b += data[i+2]; count++; }
+          }
+          if (count > 0) { r = Math.floor(r/count); g = Math.floor(g/count); b = Math.floor(b/count); }
+          
+          let colorName = '灰色';
+          if (r<50 && g<50 && b<50) colorName = '黑色';
+          else if (r>200 && g>200 && b>200) colorName = '白色';
+          else if (r > g*1.5 && r > b*1.5) colorName = '红色';
+          else if (b > r*1.2 && b > g*1.2) colorName = '蓝色';
+          else if (g > r*1.2 && g > b*1.2) colorName = '绿色';
+          
+          state.upload.image = dataUrl;
+          state.upload.color = colorName;
+          
+          // 默认推荐一些标签
+          state.upload.styles = ['休闲'];
+          state.upload.funcs = ['透气'];
+          
+          const preview = document.getElementById('upload-preview'); 
+          preview.src = dataUrl; preview.classList.remove('hidden');
+          document.getElementById('upload-placeholder').classList.add('hidden');
+          
+          renderColorChips();
+          renderStyleChips();
+          renderFuncChips();
+          
+          loadingEl.classList.add('hidden');
+          updateSaveButton();
+        };
+        img.src = dataUrl;
+        
+      } catch (error) {
+        console.error("抠图失败", error);
+        toast("AI 识别失败，已降级使用原图");
+        loadingEl.classList.add('hidden');
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          state.upload.image = e.target.result;
           const preview = document.getElementById('upload-preview'); preview.src = state.upload.image; preview.classList.remove('hidden');
           document.getElementById('upload-placeholder').classList.add('hidden');
           updateSaveButton();
-        }; img.src = e.target.result;
-      }; reader.readAsDataURL(file);
+        };
+        reader.readAsDataURL(file);
+      }
     }
-    function renderSceneChips() { document.getElementById('scene-chips').innerHTML = SCENES.map(s => `<button class="chip ${state.scene===s.id?'active':''}" onclick="state.scene='${s.id}';renderSceneChips();">${s.name}</button>`).join(''); }
-    function renderCategoryChips() { document.getElementById('category-chips').innerHTML = Object.entries(CATEGORIES).map(([id,c]) => `<button class="chip ${state.upload.category===id?'active':''}" onclick="state.upload.category='${id}';state.upload.subtype=null;renderCategoryChips();renderSubtypeChips();updateSaveButton();">${c.name}</button>`).join(''); }
+
+    /* --- 上传页标签渲染 --- */
+    function renderCategoryChips() {
+      document.getElementById('category-chips').innerHTML = Object.entries(CATEGORIES).map(([id,c]) => `<button class="chip ${state.upload.category===id?'active':''}" onclick="state.upload.category='${id}';state.upload.subtype=null;renderCategoryChips();updateSaveButton();">${c.name}</button>`).join('');
+      renderSubtypeChips();
+    }
     function renderSubtypeChips() {
       const subs = CATEGORIES[state.upload.category].subtypes;
-      document.getElementById('subtype-chips').innerHTML = subs.map(s => `<button class="chip ${state.upload.subtype===s.id?'active':''}" onclick="state.upload.subtype='${s.id}';renderSubtypeChips();updateSaveButton();">${s.name}</button>`).join('');
-      const sub = subs.find(s => s.id === state.upload.subtype); document.getElementById('temp-hint').textContent = sub ? `保暖值：${sub.temp}°C` : '';
+      document.getElementById('subtype-chips').innerHTML = subs.map(s => `<button class="chip ${state.upload.subtype===s.id?'active':''}" onclick="state.upload.subtype='${s.id}';aiSuggestTags('${s.id}');renderSubtypeChips();updateSaveButton();">${s.name}</button>`).join('');
+      const sub = subs.find(s => s.id === state.upload.subtype); 
+      document.getElementById('temp-hint').textContent = sub ? `保暖值：${sub.temp}°C` : '';
     }
-    function renderSceneMultiChips() { document.getElementById('scene-multi-chips').innerHTML = SCENES.map(s => `<button class="chip ${state.upload.scenes.includes(s.id)?'active':''}" onclick="const id='${s.id}';const i=state.upload.scenes.indexOf(id);if(i>=0)state.upload.scenes.splice(i,1);else state.upload.scenes.push(id);renderSceneMultiChips();">${s.name}</button>`).join(''); }
-    function updateSaveButton() { document.getElementById('save-item-btn').disabled = !(state.upload.image && state.upload.subtype); }
+    function renderColorChips() {
+      document.getElementById('color-chips').innerHTML = COLORS.map(c => `<button class="chip ${state.upload.color===c?'active':''}" onclick="state.upload.color='${c}';renderColorChips();">${c}</button>`).join('');
+    }
+    function renderStyleChips() {
+      document.getElementById('style-chips').innerHTML = STYLES.map(s => `<button class="chip ${state.upload.styles.includes(s)?'active':''}" onclick="toggleTag('styles','${s}',renderStyleChips)">${s}</button>`).join('');
+    }
+    function renderFuncChips() {
+      document.getElementById('func-chips').innerHTML = FUNCTIONS.map(f => `<button class="chip ${state.upload.funcs.includes(f)?'active':''}" onclick="toggleTag('funcs','${f}',renderFuncChips)">${f}</button>`).join('');
+    }
+    function renderSceneMultiChips() {
+      document.getElementById('scene-multi-chips').innerHTML = SCENES.map(s => `<button class="chip ${state.upload.scenes.includes(s.id)?'active':''}" onclick="toggleTag('scenes','${s.id}',renderSceneMultiChips)">${s.name}</button>`).join('');
+    }
+    function toggleTag(key, value, renderFn) {
+      const arr = state.upload[key];
+      const i = arr.indexOf(value);
+      if (i >= 0) arr.splice(i, 1); else arr.push(value);
+      renderFn();
+    }
+    
+    // AI 根据选中的衣服类型，自动点亮一些推荐标签
+    function aiSuggestTags(subtypeId) {
+      let suggestedFuncs = [];
+      let suggestedStyles = [];
+      if (subtypeId === 'down' || subtypeId === 'coat' || subtypeId === 'sweater') { suggestedFuncs = ['保暖', '防风']; suggestedStyles = ['休闲', '通勤']; }
+      if (subtypeId === 'tshirt' || subtypeId === 'shorts') { suggestedFuncs = ['透气', '吸汗']; suggestedStyles = ['休闲', '运动']; }
+      if (subtypeId === 'sun') { suggestedFuncs = ['防晒', '透气']; suggestedStyles = ['休闲', '约会']; }
+      if (subtypeId === 'sneaker') { suggestedFuncs = ['透气', '吸汗']; suggestedStyles = ['运动']; }
+      if (subtypeId === 'jacket') { suggestedStyles = ['通勤', '街头']; }
+      
+      if (suggestedFuncs.length) state.upload.funcs = suggestedFuncs;
+      if (suggestedStyles.length) state.upload.styles = suggestedStyles;
+      renderFuncChips(); renderStyleChips();
+    }
+
+    function updateSaveButton() { document.getElementById('save-item-btn').disabled = !(state.upload.image && state.upload.subtype && state.upload.color); }
+
+    /* --- 衣柜多维度筛选与渲染 --- */
+    function renderFilters() {
+      // 类别
+      const catHTML = `<button class="chip ${state.filters.cat === 'all' ? 'active' : ''}" onclick="setFilter('cat','all')">全部</button>` + 
+        Object.entries(CATEGORIES).map(([id, c]) => `<button class="chip ${state.filters.cat === id ? 'active' : ''}" onclick="setFilter('cat','${id}')">${c.name}</button>`).join('');
+      document.getElementById('filter-cat').innerHTML = catHTML;
+      
+      // 颜色
+      const colorHTML = `<button class="chip ${state.filters.color === 'all' ? 'active' : ''}" onclick="setFilter('color','all')">全部</button>` + 
+        COLORS.map(c => `<button class="chip ${state.filters.color === c ? 'active' : ''}" onclick="setFilter('color','${c}')">${c}</button>`).join('');
+      document.getElementById('filter-color').innerHTML = colorHTML;
+      
+      // 风格
+      const styleHTML = `<button class="chip ${state.filters.style === 'all' ? 'active' : ''}" onclick="setFilter('style','all')">全部</button>` + 
+        STYLES.map(s => `<button class="chip ${state.filters.style === s ? 'active' : ''}" onclick="setFilter('style','${s}')">${s}</button>`).join('');
+      document.getElementById('filter-style').innerHTML = styleHTML;
+      
+      // 功能
+      const funcHTML = `<button class="chip ${state.filters.func === 'all' ? 'active' : ''}" onclick="setFilter('func','all')">全部</button>` + 
+        FUNCTIONS.map(f => `<button class="chip ${state.filters.func === f ? 'active' : ''}" onclick="setFilter('func','${f}')">${f}</button>`).join('');
+      document.getElementById('filter-func').innerHTML = funcHTML;
+    }
+    function setFilter(key, val) {
+      state.filters[key] = val;
+      renderFilters();
+      renderCloset();
+    }
+
     function renderCloset() {
-      const list = state.closetFilter === 'all' ? state.clothes : state.clothes.filter(c => c.category === state.closetFilter);
-      document.getElementById('closet-count').textContent = `一共收藏了 ${state.clothes.length} 件衣服`;
+      let list = state.clothes;
+      if (state.filters.cat !== 'all') list = list.filter(c => c.category === state.filters.cat);
+      if (state.filters.color !== 'all') list = list.filter(c => c.color === state.filters.color);
+      if (state.filters.style !== 'all') list = list.filter(c => c.styles && c.styles.includes(state.filters.style));
+      if (state.filters.func !== 'all') list = list.filter(c => c.funcs && c.funcs.includes(state.filters.func));
+
+      document.getElementById('closet-count').textContent = `找到 ${list.length} 件衣服`;
+      
       document.getElementById('closet-grid').innerHTML = list.map(item => `
         <div class="closet-item">
           <button class="delete-btn" onclick="deleteItem('${item.id}')">×</button>
           <img src="${item.image}" />
-          <div class="closet-item-info"><div class="closet-item-name">${item.subtypeName}</div><div class="closet-item-meta"><span>${item.temp}°</span></div></div>
+          <div class="closet-item-info">
+            <div class="closet-item-name">${item.subtypeName}</div>
+            <div class="item-tags">
+              <span class="item-tag" style="background:var(--primary-light); color:var(--primary);">${item.color || '彩色'}</span>
+              ${(item.styles||[]).map(s => `<span class="item-tag">${s}</span>`).join('')}
+              ${(item.funcs||[]).map(f => `<span class="item-tag">${f}</span>`).join('')}
+            </div>
+          </div>
         </div>
       `).join('');
     }
+
+    /* --- 保存与删除 --- */
     async function saveItem() {
       const u = state.upload; const sub = CATEGORIES[u.category].subtypes.find(s => s.id === u.subtype);
-      const item = { id: generateId(), image: u.image, category: u.category, subtypeName: sub.name, temp: sub.temp, scenes: [...u.scenes] };
-      await db.addClothes(item); state.clothes.push(item); toast('已保存');
-      state.upload = { image: null, category: 'top', subtype: null, scenes: [] };
-      document.getElementById('upload-preview').classList.add('hidden'); document.getElementById('upload-placeholder').classList.remove('hidden');
-      document.getElementById('file-input').value = ''; renderCategoryChips(); renderSubtypeChips(); renderSceneMultiChips(); updateSaveButton(); switchTab('closet');
+      const item = { 
+        id: generateId(), image: u.image, category: u.category, subtypeName: sub.name, 
+        temp: sub.temp, color: u.color, styles: [...u.styles], funcs: [...u.funcs], scenes: [...u.scenes] 
+      };
+      await db.addClothes(item); state.clothes.push(item); toast('已存入衣柜');
+      
+      // 重置表单
+      state.upload = { image: null, color: '', category: 'top', subtype: null, styles: [], funcs: [], scenes: [] };
+      document.getElementById('upload-preview').classList.add('hidden'); 
+      document.getElementById('upload-placeholder').classList.remove('hidden');
+      document.getElementById('file-input').value = ''; 
+      renderCategoryChips(); renderColorChips(); renderStyleChips(); renderFuncChips(); renderSceneMultiChips();
+      updateSaveButton(); 
+      switchTab('closet');
     }
+    
     async function deleteItem(id) { if(!confirm('删除这件衣服？'))return; await db.deleteClothes(id); state.clothes = state.clothes.filter(c => c.id !== id); renderCloset(); toast('已删除'); }
+
+    /* --- 天气与AI推荐 --- */
     async function handleSearchCity() {
       const name = document.getElementById('city-input').value.trim(); if(!name) return;
       try {
@@ -238,6 +472,7 @@
         document.getElementById('city-hint').textContent = `已设置：${r.name}`; toast('已保存'); refreshToday();
       } catch { toast('网络错误'); }
     }
+    
     async function refreshToday() {
       const d = new Date(); document.getElementById('today-date').textContent = `${d.getMonth()+1}月${d.getDate()}日`;
       const s = loadSettings(); if(!s.city) return;
@@ -249,33 +484,67 @@
         document.getElementById('weather-desc').textContent = `体感 ${Math.round(state.weather.apparent)}° · 风力 ${state.weather.wind}km/h`;
       } catch { toast('天气获取失败'); }
     }
+
+    function renderSceneChips() { document.getElementById('scene-chips').innerHTML = SCENES.map(s => `<button class="chip ${state.scene===s.id?'active':''}" onclick="state.scene='${s.id}';renderSceneChips();">${s.name}</button>`).join(''); }
+    
     function generateOutfit() {
       if (!state.weather) return toast('请先配置城市');
       if (!state.clothes.length) return toast('请先添加衣服');
+      
       const target = (loadSettings().targetTemp || 26) - state.weather.apparent;
       const byCat = { top: [], bottom: [], outer: [], shoes: [] };
       state.clothes.forEach(c => { if(byCat[c.category]) byCat[c.category].push(c); });
       const outers = [null, ...byCat.outer]; const shoes = byCat.shoes.length ? byCat.shoes : [null];
+      
       if (!byCat.top.length || !byCat.bottom.length) return toast('需要至少一件上衣和下装');
+
       let best = null, bestScore = Infinity;
       byCat.top.forEach(t => byCat.bottom.forEach(b => outers.forEach(o => shoes.forEach(s => {
-        const items = [t,b,o,s].filter(Boolean); const temp = items.reduce((sum,i)=>sum+i.temp,0);
+        const items = [t,b,o,s].filter(Boolean); 
+        const temp = items.reduce((sum,i)=>sum+i.temp,0);
+        
         let score = Math.abs(temp - target) * 10;
-        items.forEach(i => { if(i.scenes.length && !i.scenes.includes(state.scene)) score += 0.5; });
+        
+        // 颜色美学得分
+        let colorScore = 0;
+        const colors = items.map(i => i.color);
+        const hasBlackOrWhite = colors.includes('黑色') || colors.includes('白色') || colors.includes('灰色');
+        if (hasBlackOrWhite) colorScore += 2; 
+        if (new Set(colors).size < colors.length) colorScore += 1; 
+        
+        // 场景与风格匹配
+        const styleForScene = { daily: '休闲', work: '通勤', sport: '运动', date: '约会' };
+        const targetStyle = styleForScene[state.scene] || '休闲';
+        
+        items.forEach(i => { 
+          if(i.scenes && i.scenes.length && !i.scenes.includes(state.scene)) score += 15; 
+          if(i.styles && i.styles.length && !i.styles.includes(targetStyle)) score += 10; 
+        });
+        
+        score -= colorScore * 2; 
+
         if (score < bestScore) { bestScore = score; best = { items, temp }; }
       }))));
+      
       currentBestOutfit = best;
       const total = Math.round((state.weather.apparent + best.temp)*10)/10;
-      const html = best.items.map(it => `<div class="outfit-item"><img src="${it.image}"><div class="outfit-item-name">${it.subtypeName}</div></div>`).join('');
+      const html = best.items.map(it => `
+        <div class="outfit-item">
+          <img src="${it.image}">
+          <div class="outfit-item-name">${it.subtypeName}</div>
+        </div>
+      `).join('');
+      
       document.getElementById('outfit-result').innerHTML = `
         <div class="outfit-card card-tape">
-          <div class="outfit-title"><h3>✨ 专属搭配</h3><span class="outfit-badge">体感 ${total}°</span></div>
+          <div class="outfit-title"><h3>✨ AI 智能搭配</h3><span class="outfit-badge">体感 ${total}°</span></div>
           <div class="outfit-items">${html}</div>
           <div class="outfit-total">今日天气 ${Math.round(state.weather.apparent)}° + 衣服保暖 ${best.temp}° = <strong>${total}°</strong></div>
           <button class="btn btn-primary btn-block" style="margin: 20px 0 0" onclick="createPoster()">生成穿搭海报 📸</button>
         </div>
       `;
     }
+
     function createPoster() {
       if (!currentBestOutfit) return;
       toast('正在生成海报...');
@@ -316,13 +585,15 @@
         }; img.src = item.image;
       });
     }
+
     async function exportData() {
       const data = { clothes: await db.getAllClothes(), settings: loadSettings() };
       const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
       const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'wardrobe.json'; a.click();
     }
     async function clearAll() { if(!confirm('确定清空全部数据？')) return; await db.clearAll(); localStorage.clear(); state.clothes = []; renderCloset(); switchTab('today'); }
-    
+
+    /* --- 初始化 --- */
     (async function init() {
       CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
         if (w < 2 * r) r = w / 2; if (h < 2 * r) r = h / 2;
@@ -330,13 +601,16 @@
         this.arcTo(x + w, y, x + w, y + h, r); this.arcTo(x + w, y + h, x, y + h, r);
         this.arcTo(x, y + h, x, y, r); this.arcTo(x, y, x + w, y, r); this.closePath(); return this;
       };
-      document.getElementById('upload-area').onclick = () => document.getElementById('file-input').click();
+      document.getElementById('upload-area').onclick = () => { if(!document.getElementById('ai-loading').classList.contains('hidden')) return; document.getElementById('file-input').click(); };
       document.getElementById('file-input').onchange = (e) => { if(e.target.files[0]) handleFile(e.target.files[0]); };
-      document.getElementById('closet-filters').innerHTML = `<button class="chip active" onclick="state.closetFilter='all';renderCloset();this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active')">全部</button>` + Object.entries(CATEGORIES).map(([id,c])=>`<button class="chip" onclick="state.closetFilter='${id}';renderCloset();this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active')">${c.name}</button>`).join('');
-      renderSceneChips(); renderCategoryChips(); renderSubtypeChips(); renderSceneMultiChips();
-      state.clothes = await db.getAllClothes(); renderCloset();
+      
+      renderSceneChips(); renderCategoryChips(); renderColorChips(); renderStyleChips(); renderFuncChips(); renderSceneMultiChips();
+      
+      state.clothes = await db.getAllClothes(); renderFilters(); renderCloset();
+      
       const s = loadSettings(); document.getElementById('city-input').value = s.city || ''; document.getElementById('target-temp-input').value = s.targetTemp || 26;
-      if (s.city) document.getElementById('city-hint').textContent = `已设置：${s.city}`; refreshToday();
+      if (s.city) document.getElementById('city-hint').textContent = `已设置：${s.city}`; 
+      refreshToday();
     })();
   </script>
 </body>
