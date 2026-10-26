@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#f5f5f7" />
+  <title>我的每日衣柜</title>
+  <style>
+    :root {
+      --bg: #f5f5f7; --card: #ffffff; --text: #1d1d1f; --text-2: #86868b;
+      --primary: #4f6ef7; --primary-dark: #3d5ae0; --border: #e5e5ea;
+      --danger: #ff3b30; --radius: 16px; --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04);
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: -apple-system, sans-serif; font-size: 15px; line-height: 1.5; }
+    body { padding-bottom: calc(72px + env(safe-area-inset-bottom)); }
+    #app { max-width: 720px; margin: 0 auto; padding: 16px; }
+    .view { display: none; } .view.active { display: block; }
+    .page-header { padding: 8px 4px 16px; }
+    .page-header h1 { margin: 0; font-size: 28px; font-weight: 700; }
+    .subtitle { margin: 4px 0 0; color: var(--text-2); font-size: 14px; }
+    .card { background: var(--card); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; box-shadow: var(--shadow); }
+    .section-title { margin: 0 0 12px; font-size: 15px; font-weight: 600; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip { padding: 8px 14px; border-radius: 999px; border: 1px solid var(--border); background: #fff; color: var(--text); font-size: 14px; cursor: pointer; }
+    .chip.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+    .btn { padding: 12px 18px; border-radius: 12px; border: none; font-size: 15px; font-weight: 600; cursor: pointer; }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-secondary { background: #f0f0f3; color: var(--text); }
+    .btn-danger { background: #fff0ef; color: var(--danger); }
+    .btn-block { display: block; width: 100%; margin: 8px 0 16px; }
+    .btn-stack { display: flex; flex-direction: column; gap: 8px; }
+    .hidden { display: none !important; }
+    .weather-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; }
+    .weather-main { display: flex; align-items: center; gap: 16px; }
+    .weather-temp { font-size: 48px; font-weight: 700; line-height: 1; }
+    .weather-desc { font-size: 16px; font-weight: 600; }
+    .weather-meta { font-size: 13px; opacity: 0.85; margin-top: 4px; }
+    .upload-area { border: 2px dashed var(--border); border-radius: var(--radius); min-height: 180px; display: flex; align-items: center; justify-content: center; cursor: pointer; overflow: hidden; background: #fafafa; position: relative; }
+    .upload-placeholder { text-align: center; color: var(--text-2); }
+    .upload-icon { font-size: 36px; margin-bottom: 8px; }
+    .upload-preview { width: 100%; max-height: 320px; object-fit: contain; display: block; }
+    .color-info { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 14px; color: var(--text-2); }
+    .color-dot { width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--border); display: inline-block; }
+    .hint { font-size: 13px; color: var(--text-2); margin: 8px 0 0; }
+    .input-row { display: flex; gap: 8px; align-items: center; }
+    .input-row input { flex: 1; padding: 10px 14px; border: 1px solid var(--border); border-radius: 10px; font-size: 15px; outline: none; }
+    .closet-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+    .closet-item { background: var(--card); border-radius: 14px; overflow: hidden; box-shadow: var(--shadow); position: relative; }
+    .closet-item img { width: 100%; aspect-ratio: 3/4; object-fit: cover; background: #fafafa; }
+    .closet-item-info { padding: 8px 10px; }
+    .closet-item-name { font-size: 13px; font-weight: 600; }
+    .closet-item-meta { font-size: 12px; color: var(--text-2); margin-top: 2px; display: flex; align-items: center; gap: 6px; }
+    .mini-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+    .delete-btn { position: absolute; top: 6px; right: 6px; width: 26px; height: 26px; border-radius: 50%; background: rgba(0,0,0,0.5); color: #fff; border: none; font-size: 14px; cursor: pointer; }
+    .outfit-card { background: var(--card); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; box-shadow: var(--shadow); }
+    .outfit-card.primary { border: 2px solid var(--primary); }
+    .outfit-title { display: flex; justify-content: space-between; margin-bottom: 12px; }
+    .outfit-badge { font-size: 12px; padding: 4px 10px; border-radius: 999px; background: #eef1ff; color: var(--primary); font-weight: 600; }
+    .outfit-badge.warn { background: #fff4e5; color: #d97706; }
+    .outfit-items { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+    .outfit-item img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 10px; background: #fafafa; }
+    .outfit-item-name { font-size: 12px; text-align: center; margin-top: 4px; }
+    .outfit-total { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 13px; color: var(--text-2); }
+    .tabbar { position: fixed; left: 0; right: 0; bottom: 0; display: flex; background: rgba(255,255,255,0.92); backdrop-filter: blur(20px); border-top: 1px solid var(--border); padding-bottom: env(safe-area-inset-bottom); z-index: 100; }
+    .tab { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 8px 0 6px; background: none; border: none; color: var(--text-2); font-size: 11px; cursor: pointer; }
+    .tab.active { color: var(--primary); }
+    .tab-icon { font-size: 20px; margin-bottom: 2px; }
+    .toast { position: fixed; left: 50%; bottom: 100px; transform: translateX(-50%); background: rgba(0,0,0,0.82); color: #fff; padding: 10px 20px; border-radius: 999px; font-size: 14px; opacity: 0; pointer-events: none; transition: 0.25s; z-index: 200; }
+    .toast.show { opacity: 1; }
+  </style>
+</head>
+<body>
+  <main id="app">
+    <section class="view active" id="view-today">
+      <header class="page-header"><h1>今日穿搭</h1><p class="subtitle" id="today-date"></p></header>
+      <div class="card weather-card" id="weather-card">
+        <div id="weather-empty"><p>还没有设置城市</p><button class="btn btn-primary" onclick="switchTab('settings')">去设置城市</button></div>
+        <div class="hidden" id="weather-content">
+          <div class="weather-main">
+            <div class="weather-temp" id="weather-temp">--°</div>
+            <div>
+              <div class="weather-desc" id="weather-desc">--</div>
+              <div class="weather-meta" id="weather-meta">--</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card"><h2 class="section-title">今天穿去哪？</h2><div class="chips" id="scene-chips"></div></div>
+      <button class="btn btn-primary btn-block" onclick="generateOutfit()">生成今日穿搭</button>
+      <div id="outfit-result"></div>
+    </section>
+
+    <section class="view" id="view-closet">
+      <header class="page-header"><h1>我的衣柜</h1><p class="subtitle" id="closet-count"></p></header>
+      <div class="chips" id="closet-filters" style="margin-bottom:12px"></div>
+      <div class="closet-grid" id="closet-grid"></div>
+    </section>
+
+    <section class="view" id="view-upload">
+      <header class="page-header"><h1>添加衣物</h1></header>
+      <div class="card">
+        <div class="upload-area" id="upload-area">
+          <input type="file" accept="image/*" id="file-input" hidden />
+          <div class="upload-placeholder" id="upload-placeholder"><div class="upload-icon">＋</div><p>拍照或选择图片</p></div>
+          <img id="upload-preview" class="upload-preview hidden" />
+        </div>
+        <div class="color-info hidden" id="color-info"><span class="color-dot" id="color-dot"></span><span id="color-text"></span></div>
+      </div>
+      <div class="card"><h2 class="section-title">衣物类别</h2><div class="chips" id="category-chips"></div></div>
+      <div class="card"><h2 class="section-title">具体类型</h2><div class="chips" id="subtype-chips"></div><p class="hint" id="temp-hint"></p></div>
+      <div class="card"><h2 class="section-title">风格</h2><div class="chips" id="style-chips"></div></div>
+      <div class="card"><h2 class="section-title">适合场景（可多选）</h2><div class="chips" id="scene-multi-chips"></div></div>
+      <button class="btn btn-primary btn-block" id="save-item-btn" disabled onclick="saveItem()">保存到衣柜</button>
+    </section>
+
+    <section class="view" id="view-settings">
+      <header class="page-header"><h1>设置</h1></header>
+      <div class="card">
+        <h2 class="section-title">所在城市</h2>
+        <div class="input-row"><input type="text" id="city-input" placeholder="输入城市名" /><button class="btn btn-secondary" onclick="handleSearchCity()">搜索</button></div>
+        <p class="hint" id="city-hint"></p>
+      </div>
+      <div class="card">
+        <h2 class="section-title">目标温度值</h2>
+        <div class="input-row"><input type="number" id="target-temp-input" min="15" max="35" value="26" /><span>°C</span></div>
+      </div>
+      <div class="card">
+        <h2 class="section-title">数据管理</h2>
+        <div class="btn-stack">
+          <button class="btn btn-secondary" onclick="exportData()">导出备份</button>
+          <button class="btn btn-danger" onclick="clearAll()">清空全部数据</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <nav class="tabbar">
+    <button class="tab active" onclick="switchTab('today')"><span class="tab-icon">☀️</span><span>今日</span></button>
+    <button class="tab" onclick="switchTab('closet')"><span class="tab-icon">👕</span><span>衣柜</span></button>
+    <button class="tab" onclick="switchTab('upload')"><span class="tab-icon">＋</span><span>添加</span></button>
+    <button class="tab" onclick="switchTab('settings')"><span class="tab-icon">⚙️</span><span>设置</span></button>
+  </nav>
+  <div id="toast" class="toast"></div>
+
+  <script>
+    // === 数据库 ===
+    const DB_NAME = 'daily-wardrobe'; let dbPromise = null;
+    function openDB() {
+      if (dbPromise) return dbPromise;
+      dbPromise = new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, 1);
+        req.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains('clothes')) db.createObjectStore('clothes', { keyPath: 'id' });
+        };
+        req.onsuccess = () => resolve(req.result); req.onerror = () => reject(req.error);
+      });
+      return dbPromise;
+    }
+    const db = {
+      addClothes(item) { return openDB().then(d => new Promise((res, rej) => { const t = d.transaction('clothes', 'readwrite'); t.objectStore('clothes').put(item); t.oncomplete = res; t.onerror = () => rej(t.error); })); },
+      deleteClothes(id) { return openDB().then(d => new Promise((res, rej) => { const t = d.transaction('clothes', 'readwrite'); t.objectStore('clothes').delete(id); t.oncomplete = res; t.onerror = () => rej(t.error); })); },
+      getAllClothes() { return openDB().then(d => new Promise((res, rej) => { const req = d.transaction('clothes', 'readonly').objectStore('clothes').getAll(); req.onsuccess = () => res(req.result || []); req.onerror = () => rej(req.error); })); },
+      clearAll() { return openDB().then(d => new Promise((res, rej) => { const t = d.transaction('clothes', 'readwrite'); t.objectStore('clothes').clear(); t.oncomplete = res; t.onerror = () => rej(t.error); })); }
+    };
+
+    // === 常量配置 ===
+    const CATEGORIES = {
+      top: { name: '上衣', subtypes: [{ id: 'tshirt', name: '短袖T恤', temp: 1 }, { id: 'shirt', name: '长袖/衬衫', temp: 2 }, { id: 'hoodie', name: '卫衣/针织', temp: 3.5 }, { id: 'sweater', name: '毛衣', temp: 5 }] },
+      bottom: { name: '下装', subtypes: [{ id: 'shorts', name: '短裤/短裙', temp: 0.5 }, { id: 'skirt', name: '长裤/长裙', temp: 1.5 }, { id: 'pants', name: '牛仔裤', temp: 2.5 }] },
+      outer: { name: '外套', subtypes: [{ id: 'sun', name: '防晒/开衫', temp: 1.5 }, { id: 'jacket', name: '夹克/西装', temp: 3 }, { id: 'coat', name: '大衣/棉服', temp: 7 }, { id: 'down', name: '羽绒服', temp: 10 }] },
+      shoes: { name: '鞋', subtypes: [{ id: 'canvas', name: '帆布鞋/单鞋', temp: 0.5 }, { id: 'sneaker', name: '运动鞋', temp: 1 }, { id: 'boots', name: '靴子', temp: 2 }] }
+    };
+    const STYLES = [{ id: 'casual', name: '休闲' }, { id: 'sport', name: '运动' }, { id: 'commute', name: '通勤' }, { id: 'formal', name: '正式' }];
+    const SCENES = [{ id: 'daily', name: '日常' }, { id: 'work', name: '通勤' }, { id: 'sport', name: '运动' }, { id: 'date', name: '约会' }];
+    const SCENE_STYLE_MAP = { daily: 'casual', work: 'commute', sport: 'sport', date: 'sweet' };
+
+    // === 状态 ===
+    const state = { clothes: [], scene: 'daily', closetFilter: 'all', weather: null, upload: { image: null, color: null, category: 'top', subtype: null, style: 'casual', scenes: [] } };
+    let toastTimer = null;
+
+    // === 工具 ===
+    function todayStr() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+    function generateId() { return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`; }
+    function toast(msg) { const el = document.getElementById('toast'); el.textContent = msg; el.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 2200); }
+    function loadSettings() { try { return JSON.parse(localStorage.getItem('wardrobe-settings')) || {}; } catch { return {}; } }
+    function saveSettings(s) { localStorage.setItem('wardrobe-settings', JSON.stringify(s)); }
+
+    // === 页面切换 ===
+    function switchTab(name) {
+      document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === `view-${name}`));
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      const tabBtn = Array.from(document.querySelectorAll('.tab')).find(t => t.textContent.includes(name === 'today' ? '今日' : name === 'closet' ? '衣柜' : name === 'upload' ? '添加' : '设置'));
+      if (tabBtn) tabBtn.classList.add('active');
+      window.scrollTo(0, 0);
+      if (name === 'closet') renderCloset();
+      if (name === 'today') refreshToday();
+    }
+
+    // === 图片压缩与主色 ===
+    async function handleFile(file) {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas'); let { width, height } = img; const max = 800;
+          if (width > max || height > max) { const r = Math.min(max/width, max/height); width *= r; height *= r; }
+          canvas.width = width; canvas.height = height;
+          const ctx = canvas.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0,0,width,height); ctx.drawImage(img,0,0,width,height);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+          
+          // 取主色
+          const buckets = new Map();
+          const data = ctx.getImageData(0,0,Math.max(1,width>>2),Math.max(1,height>>2)).data;
+          for(let i=0; i<data.length; i+=4) {
+            const r=data[i],g=data[i+1],b=data[i+2]; if(r>235&&g>235&&b>235) continue; if(r<20&&g<20&&b<20) continue;
+            const k = `${r>>5},${g>>5},${b>>5}`; const en = buckets.get(k)||{c:0,r:0,g:0,b:0}; en.c++; en.r+=r; en.g+=g; en.b+=b; buckets.set(k,en);
+          }
+          let best = null; for(const e of buckets.values()) if(!best||e.c>best.c) best=e;
+          const color = best ? `#${[Math.round(best.r/best.c),Math.round(best.g/best.c),Math.round(best.b/best.c)].map(v=>v.toString(16).padStart(2,'0')).join('')}` : '#888';
+
+          state.upload.image = dataUrl; state.upload.color = color;
+          const preview = document.getElementById('upload-preview'); preview.src = dataUrl; preview.classList.remove('hidden');
+          document.getElementById('upload-placeholder').classList.add('hidden');
+          document.getElementById('color-dot').style.background = color;
+          document.getElementById('color-text').textContent = `主色 ${color}`;
+          document.getElementById('color-info').classList.remove('hidden');
+          updateSaveButton();
+        }; img.src = e.target.result;
+      }; reader.readAsDataURL(file);
+    }
+
+    // === 渲染组件 ===
+    function renderSceneChips() {
+      document.getElementById('scene-chips').innerHTML = SCENES.map(s => `<button class="chip ${state.scene===s.id?'active':''}" onclick="state.scene='${s.id}';renderSceneChips();">${s.name}</button>`).join('');
+    }
+    function renderCategoryChips() {
+      document.getElementById('category-chips').innerHTML = Object.entries(CATEGORIES).map(([id,c]) => `<button class="chip ${state.upload.category===id?'active':''}" onclick="state.upload.category='${id}';state.upload.subtype=null;renderCategoryChips();renderSubtypeChips();updateSaveButton();">${c.name}</button>`).join('');
+    }
+    function renderSubtypeChips() {
+      const subs = CATEGORIES[state.upload.category].subtypes;
+      document.getElementById('subtype-chips').innerHTML = subs.map(s => `<button class="chip ${state.upload.subtype===s.id?'active':''}" onclick="state.upload.subtype='${s.id}';renderSubtypeChips();updateSaveButton();">${s.name}</button>`).join('');
+      const sub = subs.find(s => s.id === state.upload.subtype); document.getElementById('temp-hint').textContent = sub ? `保暖值：${sub.temp}°C` : '';
+    }
+    function renderStyleChips() {
+      document.getElementById('style-chips').innerHTML = STYLES.map(s => `<button class="chip ${state.upload.style===s.id?'active':''}" onclick="state.upload.style='${s.id}';renderStyleChips();">${s.name}</button>`).join('');
+    }
+    function renderSceneMultiChips() {
+      document.getElementById('scene-multi-chips').innerHTML = SCENES.map(s => `<button class="chip ${state.upload.scenes.includes(s.id)?'active':''}" onclick="const id='${s.id}';const i=state.upload.scenes.indexOf(id);if(i>=0)state.upload.scenes.splice(i,1);else state.upload.scenes.push(id);renderSceneMultiChips();">${s.name}</button>`).join('');
+    }
+    function updateSaveButton() { document.getElementById('save-item-btn').disabled = !(state.upload.image && state.upload.subtype); }
+    
+    function renderCloset() {
+      const list = state.closetFilter === 'all' ? state.clothes : state.clothes.filter(c => c.category === state.closetFilter);
+      document.getElementById('closet-count').textContent = `共 ${state.clothes.length} 件`;
+      document.getElementById('closet-grid').innerHTML = list.map(item => `
+        <div class="closet-item">
+          <button class="delete-btn" onclick="deleteItem('${item.id}')">×</button>
+          <img src="${item.image}" />
+          <div class="closet-item-info"><div class="closet-item-name">${item.subtypeName}</div><div class="closet-item-meta"><span class="mini-dot" style="background:${item.color}"></span><span>${item.temp}°</span></div></div>
+        </div>
+      `).join('');
+    }
+
+    // === 业务逻辑 ===
+    async function saveItem() {
+      const u = state.upload; const sub = CATEGORIES[u.category].subtypes.find(s => s.id === u.subtype);
+      const item = { id: generateId(), image: u.image, color: u.color, category: u.category, subtypeName: sub.name, temp: sub.temp, style: u.style, scenes: [...u.scenes] };
+      await db.addClothes(item); state.clothes.push(item); toast('已保存');
+      state.upload = { image: null, color: null, category: 'top', subtype: null, style: 'casual', scenes: [] };
+      document.getElementById('upload-preview').classList.add('hidden'); document.getElementById('upload-placeholder').classList.remove('hidden');
+      document.getElementById('color-info').classList.add('hidden'); document.getElementById('file-input').value = '';
+      renderCategoryChips(); renderSubtypeChips(); renderStyleChips(); renderSceneMultiChips(); updateSaveButton();
+      switchTab('closet');
+    }
+    async function deleteItem(id) { if(!confirm('删除这件？'))return; await db.deleteClothes(id); state.clothes = state.clothes.filter(c => c.id !== id); renderCloset(); toast('已删除'); }
+
+    async function handleSearchCity() {
+      const name = document.getElementById('city-input').value.trim(); if(!name) return;
+      try {
+        const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name)}&count=1&language=zh&format=json`);
+        const data = await res.json(); if(!data.results || !data.results.length) return toast('找不到该城市');
+        const r = data.results[0]; const s = loadSettings(); s.city = r.name; s.lat = r.latitude; s.lon = r.longitude; saveSettings(s);
+        document.getElementById('city-hint').textContent = `已设置：${r.name}`; toast('已保存'); refreshToday();
+      } catch { toast('网络错误'); }
+    }
+
+    async function refreshToday() {
+      const d = new Date(); document.getElementById('today-date').textContent = `${d.getMonth()+1}月${d.getDate()}日`;
+      const s = loadSettings(); if(!s.city) return;
+      document.getElementById('weather-empty').classList.add('hidden'); document.getElementById('weather-content').classList.remove('hidden');
+      try {
+        const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${s.lat}&longitude=${s.lon}&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m&timezone=auto`);
+        const data = await res.json(); state.weather = { temp: data.current.temperature_2m, apparent: data.current.apparent_temperature, code: data.current.weather_code, wind: data.current.wind_speed_10m };
+        document.getElementById('weather-temp').textContent = Math.round(state.weather.temp) + '°';
+        document.getElementById('weather-meta').textContent = `体感 ${Math.round(state.weather.apparent)}° · 风 ${state.weather.wind}km/h`;
+      } catch { toast('天气获取失败'); }
+    }
+
+    function generateOutfit() {
+      if (!state.weather) return toast('请先配置城市');
+      if (!state.clothes.length) return toast('请先添加衣服');
+      const target = (loadSettings().targetTemp || 26) - state.weather.apparent;
+      const byCat = { top: [], bottom: [], outer: [], shoes: [] };
+      state.clothes.forEach(c => { if(byCat[c.category]) byCat[c.category].push(c); });
+      const outers = [null, ...byCat.outer]; const shoes = byCat.shoes.length ? byCat.shoes : [null];
+      if (!byCat.top.length || !byCat.bottom.length) return toast('需要至少一件上衣和下装');
+      
+      let best = null, bestScore = Infinity;
+      byCat.top.forEach(t => byCat.bottom.forEach(b => outers.forEach(o => shoes.forEach(s => {
+        const items = [t,b,o,s].filter(Boolean); const temp = items.reduce((sum,i)=>sum+i.temp,0);
+        let score = Math.abs(temp - target) * 10;
+        items.forEach(i => { if(i.scenes.length && !i.scenes.includes(state.scene)) score += 0.5; });
+        if (score < bestScore) { bestScore = score; best = { items, temp }; }
+      }))));
+
+      const html = best.items.map(it => `
+        <div class="outfit-item"><img src="${it.image}"><div class="outfit-item-name">${it.subtypeName}</div><div class="outfit-item-temp">${it.temp}°</div></div>
+      `).join('');
+      document.getElementById('outfit-result').innerHTML = `
+        <div class="outfit-card primary">
+          <div class="outfit-title"><h3>今日推荐</h3><span class="outfit-badge">总感温 ${Math.round((state.weather.apparent + best.temp)*10)/10}°</span></div>
+          <div class="outfit-items">${html}</div>
+        </div>
+      `;
+    }
+
+    async function exportData() {
+      const data = { clothes: await db.getAllClothes(), settings: loadSettings() };
+      const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'wardrobe.json'; a.click();
+    }
+    async function clearAll() { if(!confirm('确定清空全部数据？')) return; await db.clearAll(); localStorage.clear(); state.clothes = []; renderCloset(); switchTab('today'); }
+
+    // === 初始化 ===
+    (async function init() {
+      document.getElementById('upload-area').onclick = () => document.getElementById('file-input').click();
+      document.getElementById('file-input').onchange = (e) => { if(e.target.files[0]) handleFile(e.target.files[0]); };
+      document.getElementById('closet-filters').innerHTML = `<button class="chip active" onclick="state.closetFilter='all';renderCloset()">全部</button>` + Object.entries(CATEGORIES).map(([id,c])=>`<button class="chip" onclick="state.closetFilter='${id}';renderCloset()">${c.name}</button>`).join('');
+      
+      renderSceneChips(); renderCategoryChips(); renderSubtypeChips(); renderStyleChips(); renderSceneMultiChips();
+      state.clothes = await db.getAllClothes(); renderCloset();
+      
+      const s = loadSettings(); document.getElementById('city-input').value = s.city || ''; document.getElementById('target-temp-input').value = s.targetTemp || 26;
+      if (s.city) document.getElementById('city-hint').textContent = `已设置：${s.city}`;
+      refreshToday();
+    })();
+  </script>
+</body>
+</html>
